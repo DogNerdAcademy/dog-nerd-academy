@@ -1,49 +1,100 @@
-// src/App.jsx
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
+import { RouterProvider, createBrowserRouter } from 'react-router-dom';
 import RootLayout from './layouts/RootLayout';
-import Dashboard from './pages/Dashboard';
+import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import CourseDetail from './pages/CourseDetail';
-import { Suspense } from 'react';
+import Dashboard from './pages/Dashboard';
+import ProtectedRoute from './components/ProtectedRoute';
+import QuizTestingPage from './pages/admin/QuizTestingPage';
 
-function LoadingSpinner() {
+// Import course-related components
+import CourseDetail from './pages/CourseDetail';
+import LessonDetail from './pages/LessonDetail';
+
+// Error boundary component
+const ErrorBoundary = () => {
   return (
-    <div className="flex justify-center items-center h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-lg">
+        <h1 className="text-2xl font-bold text-red-600 mb-4">Oops! Something went wrong</h1>
+        <p className="text-gray-600 mb-4">We couldn't find the page you're looking for.</p>
+        <a 
+          href="/"
+          className="inline-block px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+        >
+          Return Home
+        </a>
+      </div>
     </div>
   );
-}
+};
+
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <RootLayout />,
+    errorElement: <ErrorBoundary />,
+    children: [
+      {
+        index: true,
+        element: <Home />,
+      },
+      {
+        path: 'login',
+        element: <Login />,
+      },
+      {
+        path: 'register',
+        element: <Register />,
+      },
+      {
+        path: 'dashboard',
+        element: (
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'courses',
+        children: [
+          {
+            path: ':courseId',
+            element: (
+              <ProtectedRoute>
+                <CourseDetail />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ':courseId/lessons/:lessonId',
+            element: (
+              <ProtectedRoute>
+                <LessonDetail />
+              </ProtectedRoute>
+            ),
+          }
+        ]
+      },
+      {
+        path: 'admin',
+        children: [
+          {
+            path: 'quiz-testing',
+            element: (
+              <ProtectedRoute adminOnly>
+                <QuizTestingPage />
+              </ProtectedRoute>
+            ),
+          }
+        ]
+      }
+    ],
+  },
+]);
 
 function App() {
-  console.log('Rendering App');
-  return (
-    <Router>
-      <AuthProvider>
-        <Suspense fallback={<LoadingSpinner />}>
-          <Routes>
-            <Route element={<RootLayout />}>
-              {/* Public routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              
-              {/* Protected routes */}
-              <Route element={<ProtectedRoute />}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/courses/:courseId" element={<CourseDetail />} />
-              </Route>
-
-              {/* Catch all route */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Routes>
-        </Suspense>
-      </AuthProvider>
-    </Router>
-  );
+  return <RouterProvider router={router} />;
 }
 
 export default App;

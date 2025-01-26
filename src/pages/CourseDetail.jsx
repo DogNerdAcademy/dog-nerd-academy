@@ -1,5 +1,4 @@
-// src/pages/CourseDetail.jsx
-import { useParams, Navigate, useSearchParams } from 'react-router-dom';
+import { useParams, Navigate, useSearchParams, useNavigate } from 'react-router-dom';
 import { useCourseDetails } from '../hooks/useCourses';
 import { useAuth } from '../contexts/AuthContext';
 import ModuleAccordion from '../components/ModuleAccordion';
@@ -11,7 +10,8 @@ const CourseDetail = () => {
   const { courseId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { course, modules, loading, error, updateLessonProgress } = useCourseDetails(courseId);
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
+  const navigate = useNavigate();
 
   // Get current module and lesson from URL params
   const currentModuleId = searchParams.get('moduleId');
@@ -33,10 +33,12 @@ const CourseDetail = () => {
     await updateLessonProgress(moduleId, lessonId, true);
   };
 
-  // New function to handle video progress updates
   const handleProgressUpdate = async (moduleId, lessonId, progressData) => {
-    // For now, just log the progress
     console.log('Progress update:', { moduleId, lessonId, progressData });
+  };
+
+  const handleQuizAccess = () => {
+    navigate('/admin/quiz-testing');
   };
 
   const findAdjacentLesson = (direction) => {
@@ -91,7 +93,6 @@ const CourseDetail = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const isAdmin = currentUser?.role === 'admin';
   const isPublished = course.status === 'published';
 
   return (
@@ -110,6 +111,18 @@ const CourseDetail = () => {
                 </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Admin Quiz Management Button */}
+        {isAdmin && (
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={handleQuizAccess}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              Manage Quizzes
+            </button>
           </div>
         )}
 

@@ -1,4 +1,3 @@
-// src/services/courseService.js
 import { db } from '../config/firebase';
 import { 
   collection, 
@@ -16,6 +15,7 @@ import {
 const COURSES_COLLECTION = 'courses';
 const MODULES_COLLECTION = 'modules';
 const LESSONS_COLLECTION = 'lessons';
+const PROGRESS_COLLECTION = 'progress';
 
 // Course Operations
 export const getAllCourses = async (isAdmin = false) => {
@@ -24,10 +24,8 @@ export const getAllCourses = async (isAdmin = false) => {
     let q;
     
     if (isAdmin) {
-      // For admin, just order by orderIndex
       q = query(coursesRef, orderBy('orderIndex'));
     } else {
-      // For regular users, temporarily remove orderBy until index is created
       q = query(
         coursesRef,
         where('status', '==', 'published')
@@ -40,11 +38,10 @@ export const getAllCourses = async (isAdmin = false) => {
       ...doc.data()
     }));
 
-    // Sort manually for now
     return courses.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
   } catch (error) {
     console.error('Error fetching courses:', error);
-    return [];
+    throw error;
   }
 };
 
@@ -85,6 +82,24 @@ export const createCourse = async (courseData) => {
   }
 };
 
+export const updateCourse = async (courseId, courseData) => {
+  try {
+    const courseRef = doc(db, COURSES_COLLECTION, courseId);
+    const updateData = {
+      ...courseData,
+      updatedAt: new Date().toISOString()
+    };
+    await updateDoc(courseRef, updateData);
+    return {
+      id: courseId,
+      ...updateData
+    };
+  } catch (error) {
+    console.error('Error updating course:', error);
+    throw error;
+  }
+};
+
 // Module Operations
 export const getModulesByCourseId = async (courseId) => {
   try {
@@ -111,6 +126,7 @@ export const createModule = async (moduleData) => {
     const newModule = {
       ...moduleData,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       status: moduleData.status || 'draft'
     };
     const docRef = await addDoc(modulesRef, newModule);
@@ -124,7 +140,125 @@ export const createModule = async (moduleData) => {
   }
 };
 
-// Test Data Function
+export const updateModule = async (moduleId, moduleData) => {
+  try {
+    const moduleRef = doc(db, MODULES_COLLECTION, moduleId);
+    const updateData = {
+      ...moduleData,
+      updatedAt: new Date().toISOString()
+    };
+    await updateDoc(moduleRef, updateData);
+    return {
+      id: moduleId,
+      ...updateData
+    };
+  } catch (error) {
+    console.error('Error updating module:', error);
+    throw error;
+  }
+};
+
+// Lesson Operations
+export const getLessonsByModuleId = async (moduleId) => {
+  try {
+    const lessonsRef = collection(db, LESSONS_COLLECTION);
+    const q = query(
+      lessonsRef,
+      where('moduleId', '==', moduleId),
+      orderBy('orderIndex')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error fetching lessons:', error);
+    throw error;
+  }
+};
+
+export const getLessonById = async (lessonId) => {
+  try {
+    const lessonRef = doc(db, LESSONS_COLLECTION, lessonId);
+    const lessonDoc = await getDoc(lessonRef);
+    if (!lessonDoc.exists()) {
+      throw new Error('Lesson not found');
+    }
+    return {
+      id: lessonDoc.id,
+      ...lessonDoc.data()
+    };
+  } catch (error) {
+    console.error('Error fetching lesson:', error);
+    throw error;
+  }
+};
+
+export const createLesson = async (lessonData) => {
+  try {
+    const lessonsRef = collection(db, LESSONS_COLLECTION);
+    const newLesson = {
+      ...lessonData,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      status: lessonData.status || 'draft',
+      videoUrl: lessonData.videoUrl || null,
+      lastPlaybackTime: 0,
+      videoDuration: null,
+      watchedPercentage: 0
+    };
+    const docRef = await addDoc(lessonsRef, newLesson);
+    return {
+      id: docRef.id,
+      ...newLesson
+    };
+  } catch (error) {
+    console.error('Error creating lesson:', error);
+    throw error;
+  }
+};
+
+export const updateLesson = async (lessonId, lessonData) => {
+  try {
+    const lessonRef = doc(db, LESSONS_COLLECTION, lessonId);
+    // Only admin can update these fields
+    if (!lessonData.hasOwnProperty('id') && !lessonData.hasOwnProperty('moduleId')) {
+      const updateData = {
+        ...lessonData,
+        updatedAt: new Date().toISOString()
+      };
+      await updateDoc(lessonRef, updateData);
+      return {
+        id: lessonId,
+        ...updateData
+      };
+    } else {
+      throw new Error('Cannot update id or moduleId fields');
+    }
+  } catch (error) {
+    console.error('Error updating lesson:', error);
+    throw error;
+  }
+};
+
+export const updateLessonProgress = async (lessonId, progressData) => {
+  try {
+    const lessonRef = doc(db, LESSONS_COLLECTION, lessonId);
+    const updateData = {
+      lastPlaybackTime: progressData.currentTime || 0,
+      videoDuration: progressData.duration || null,
+      watchedPercentage: progressData.progress || 0,
+      updatedAt: new Date().toISOString()
+    };
+    await updateDoc(lessonRef, updateData);
+  } catch (error) {
+    console.error('Error updating lesson progress:', error);
+    throw error;
+  }
+};
+
+// Test Data Functions
 export const addTestCourses = async () => {
   const coursesRef = collection(db, COURSES_COLLECTION);
   
