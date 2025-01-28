@@ -1,6 +1,6 @@
 // src/components/TestVideoPlayer.jsx
 import React from 'react';
-import VideoPlayer from './VideoPlayer';
+import VideoPlayer from './content/VideoPlayer';
 
 const TestVideoPlayer = () => {
   const [showVideo, setShowVideo] = React.useState(false);

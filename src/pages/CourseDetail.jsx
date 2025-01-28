@@ -3,7 +3,7 @@ import { useCourseDetails } from '../hooks/useCourses';
 import { useAuth } from '../contexts/AuthContext';
 import ModuleAccordion from '../components/ModuleAccordion';
 import LessonViewer from '../components/LessonViewer';
-import TestVideoPlayer from '../components/TestVideoPlayer';
+import TestVideoPlayer from '../components/development/TestVideoPlayer';
 import { ChevronRight } from 'lucide-react';
 
 const CourseDetail = () => {

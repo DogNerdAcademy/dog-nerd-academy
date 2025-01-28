@@ -1,3 +1,4 @@
+// src/services/quizService.js
 import { db } from '../config/firebase';
 import { 
   collection, 
@@ -32,9 +33,20 @@ import {
  * @property {number} maxAttempts - Maximum number of attempts allowed (0 for unlimited)
  */
 
+/**
+ * @typedef {Object} QuizAttempt
+ * @property {string} quizId - Quiz identifier
+ * @property {string} userId - User identifier
+ * @property {number} score - Score achieved (percentage)
+ * @property {boolean} passed - Whether the attempt passed the quiz
+ * @property {number[]} answers - Array of selected answer indices
+ * @property {Date} timestamp - When the attempt was made
+ */
+
 class QuizService {
   constructor() {
     this.quizCollection = collection(db, 'quizzes');
+    this.attemptCollection = collection(db, 'quiz-attempts');
   }
 
   /**
@@ -120,7 +132,7 @@ class QuizService {
       explanation: question.explanation
     }));
 
-    // Store the attempt in Firestore
+    // Store the attempt
     await this.recordAttempt(quizId, userId, {
       score,
       passed,
@@ -129,6 +141,68 @@ class QuizService {
     });
 
     return { score, passed, feedback };
+  }
+
+  /**
+   * Get the best score from all attempts for a quiz
+   * @param {string} userId
+   * @param {string} quizId
+   * @returns {Promise<number|null>} Best score or null if no attempts
+   */
+  async getBestAttemptScore(userId, quizId) {
+    try {
+      const q = query(
+        this.attemptCollection,
+        where('userId', '==', userId),
+        where('quizId', '==', quizId)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const attempts = querySnapshot.docs.map(doc => doc.data());
+      
+      if (!attempts.length) return null;
+      return Math.max(...attempts.map(attempt => attempt.score));
+    } catch (error) {
+      console.error('Error getting best attempt:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all attempts for a user on a specific quiz
+   * @param {string} userId
+   * @param {string} quizId
+   * @returns {Promise<QuizAttempt[]>}
+   */
+  async getUserAttempts(userId, quizId) {
+    const q = query(
+      this.attemptCollection,
+      where('userId', '==', userId),
+      where('quizId', '==', quizId)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  }
+
+  /**
+   * Check if user has passed the quiz
+   * @param {string} userId
+   * @param {string} quizId
+   * @returns {Promise<boolean>}
+   */
+  async hasPassedQuiz(userId, quizId) {
+    try {
+      const quiz = await this.getQuizById(quizId);
+      const bestScore = await this.getBestAttemptScore(userId, quizId);
+      return bestScore !== null && bestScore >= quiz.passingScore;
+    } catch (error) {
+      console.error('Error checking quiz passing status:', error);
+      throw error;
+    }
   }
 
   /**
@@ -154,8 +228,7 @@ class QuizService {
    * @returns {Promise<void>}
    */
   async recordAttempt(quizId, userId, attemptData) {
-    const attemptsCollection = collection(db, 'quiz-attempts');
-    await addDoc(attemptsCollection, {
+    await addDoc(this.attemptCollection, {
       quizId,
       userId,
       ...attemptData

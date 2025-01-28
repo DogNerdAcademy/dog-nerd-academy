@@ -1,97 +1,135 @@
+// src/hooks/useQuiz.js
 import { useState, useEffect } from 'react';
 import { quizService } from '../services/quizService';
-import { useAuth } from '../contexts/AuthContext';
 
-export const useQuiz = (quizId) => {
+/**
+ * Custom hook for managing quiz state and interactions
+ * @param {string} lessonId - ID of the lesson
+ * @param {string} userId - ID of the current user
+ */
+const useQuiz = (lessonId, userId) => {
   const [quiz, setQuiz] = useState(null);
+  const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [userAnswers, setUserAnswers] = useState([]);
-  const [quizResult, setQuizResult] = useState(null);
-  const { currentUser } = useAuth();
+  const [currentAttempt, setCurrentAttempt] = useState({
+    answers: [],
+    currentQuestion: 0
+  });
 
+  // Load quiz data
   useEffect(() => {
     const loadQuiz = async () => {
       try {
         setLoading(true);
-        const quizData = await quizService.getQuizById(quizId);
-        setQuiz(quizData);
-        setUserAnswers(new Array(quizData.questions.length).fill(null));
+        const quizzes = await quizService.getQuizzesByLesson(lessonId);
+        if (quizzes.length > 0) {
+          const quiz = quizzes[0]; // Assuming one quiz per lesson
+          setQuiz(quiz);
+          
+          // Load user's previous attempts
+          const userAttempts = await quizService.getUserAttempts(userId, quiz.id);
+          setAttempts(userAttempts);
+        }
       } catch (err) {
         setError(err.message);
+        console.error('Error loading quiz:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    if (quizId) {
+    if (lessonId && userId) {
       loadQuiz();
     }
-  }, [quizId]);
+  }, [lessonId, userId]);
 
-  const submitAnswer = (answerIndex) => {
-    if (currentQuestion >= quiz.questions.length) return;
-
-    const newAnswers = [...userAnswers];
-    newAnswers[currentQuestion] = answerIndex;
-    setUserAnswers(newAnswers);
+  // Check if user can attempt quiz
+  const canAttemptQuiz = () => {
+    if (!quiz) return false;
+    if (quiz.maxAttempts === 0) return true; // Unlimited attempts
+    return attempts.length < quiz.maxAttempts;
   };
 
-  const nextQuestion = () => {
-    if (currentQuestion < quiz.questions.length - 1) {
-      setCurrentQuestion(prev => prev + 1);
+  // Handle answer selection
+  const selectAnswer = (questionIndex, answerIndex) => {
+    setCurrentAttempt(prev => {
+      const newAnswers = [...prev.answers];
+      newAnswers[questionIndex] = answerIndex;
+      return {
+        ...prev,
+        answers: newAnswers
+      };
+    });
+  };
+
+  // Navigate questions
+  const goToQuestion = (index) => {
+    if (index >= 0 && index < quiz?.questions.length) {
+      setCurrentAttempt(prev => ({
+        ...prev,
+        currentQuestion: index
+      }));
     }
   };
 
-  const previousQuestion = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion(prev => prev - 1);
-    }
-  };
+  // Submit quiz attempt
+  const submitAttempt = async () => {
+    if (!quiz || !canAttemptQuiz()) return;
 
-  const submitQuiz = async () => {
     try {
-      if (!currentUser) throw new Error('User must be logged in to submit quiz');
-      
+      setLoading(true);
       const result = await quizService.submitQuizAttempt(
-        quizId,
-        currentUser.uid,
-        userAnswers
+        quiz.id,
+        userId,
+        currentAttempt.answers
       );
-      setQuizResult(result);
+
+      // Update attempts list
+      const newAttempts = await quizService.getUserAttempts(userId, quiz.id);
+      setAttempts(newAttempts);
+
       return result;
     } catch (err) {
       setError(err.message);
+      console.error('Error submitting quiz:', err);
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
-  const resetQuiz = () => {
-    setCurrentQuestion(0);
-    setUserAnswers(new Array(quiz.questions.length).fill(null));
-    setQuizResult(null);
+  // Get best attempt
+  const getBestAttempt = () => {
+    if (!attempts.length) return null;
+    return attempts.reduce((best, current) => 
+      (current.score > best.score) ? current : best
+    );
+  };
+
+  // Reset current attempt
+  const resetAttempt = () => {
+    setCurrentAttempt({
+      answers: [],
+      currentQuestion: 0
+    });
   };
 
   return {
     quiz,
     loading,
     error,
-    currentQuestion,
-    userAnswers,
-    quizResult,
-    submitAnswer,
-    nextQuestion,
-    previousQuestion,
-    submitQuiz,
-    resetQuiz,
-    isComplete: userAnswers.every(answer => answer !== null),
-    progress: {
-      current: currentQuestion + 1,
-      total: quiz?.questions?.length || 0,
-      percentage: quiz?.questions?.length 
-        ? ((currentQuestion + 1) / quiz.questions.length) * 100 
-        : 0
+    attempts,
+    currentAttempt,
+    canAttemptQuiz: canAttemptQuiz(),
+    bestAttempt: getBestAttempt(),
+    actions: {
+      selectAnswer,
+      goToQuestion,
+      submitAttempt,
+      resetAttempt
     }
   };
 };
+
+export default useQuiz;

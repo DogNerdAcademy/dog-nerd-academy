@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { getLessonById } from '../services/courseService';
-import VideoPlayer from '../components/VideoPlayer';
+import VideoPlayer from '../components/content/VideoPlayer';
 
 const LessonDetail = () => {
   const [lesson, setLesson] = useState(null);

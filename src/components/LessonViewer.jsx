@@ -1,7 +1,7 @@
 // src/components/LessonViewer.jsx
 import React from 'react';
 import { ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
-import VideoPlayer from './VideoPlayer';
+import VideoPlayer from './content/VideoPlayer';
 
 const LessonViewer = ({ 
   course, 
